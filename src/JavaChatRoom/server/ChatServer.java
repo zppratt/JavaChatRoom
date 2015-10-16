@@ -2,11 +2,11 @@ package JavaChatRoom.server;
 
 import JavaChatRoom.client.WorkerThread;
 
-import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -18,14 +18,21 @@ public class ChatServer implements Runnable {
     protected int serverPort = 8080;
     protected ServerSocket serverSocket;
     protected boolean isStopped;
-    protected Thread runningThread;
-    protected ExecutorService threadPool = Executors.newFixedThreadPool(10);
-    protected ArrayList<WorkerThread> threadPoolList = new ArrayList<>();
+    private ExecutorService threadPool = Executors.newFixedThreadPool(10);
+    private HashMap<WorkerThread, Socket> threadPoolList = new HashMap<>();
 
+    /**
+     * Setup a server on port.
+     * @param port The port to open for the server.
+     */
     public ChatServer(int port) {
         this.serverPort = port;
     }
 
+    /**
+     * Setup the server on the entered port.
+     * @param args Must enter which port to open on.
+     */
     public static void main(String[] args) {
         // Check command line parameters
         if (args.length != 1) {
@@ -34,50 +41,60 @@ public class ChatServer implements Runnable {
             System.exit(1);
         }
         // Parse the port number from the command line and setup new server with it
-        final int portNumber = Integer.parseInt(args[0]);
-        ChatServer server = new ChatServer(portNumber);
-        // Start the server
-        new Thread(server).start();
+        try {
+            final int serverPort = Integer.parseInt(args[0]);
+            ChatServer server = new ChatServer(serverPort);
+            new Thread(server).start();
+        } catch (NumberFormatException e) {
+            System.err.println(
+                    "Usage: java ChatServer <port number>");
+            System.exit(1);
+        }
     }
 
-    // The server process
+    /**
+     * The server thread.
+     */
     public void run() {
-        synchronized (this) {
-            this.runningThread = Thread.currentThread();
-        }
-        // Open socket to receive connections
-        openServerSocket();
         while (!isStopped()) {
-            Socket clientSocket;
-            try {
-                // Wait for a connection
-                clientSocket = this.serverSocket.accept();
-                System.out.println("Successfully Connected to client" + this.threadPoolList.size());
-                PrintWriter p = new PrintWriter(clientSocket.getOutputStream(), true);
-                p.println("Hello");
+            // Open sockets for this server instance and a client
+            try (
+                    ServerSocket serverSocket =
+                            new ServerSocket(serverPort);
+                    Socket clientSocket = serverSocket.accept()
+            ) {
+                System.out.println("Successfully Connected to client" + this.getThreadPoolList().size());
+                // Setup and execute a worker thread for this client
+                WorkerThread thread = new WorkerThread(clientSocket, this);
+                this.getThreadPool().execute(thread);
+                // Associate this instance of the client with its worker thread
+                this.getThreadPoolList().put(thread, clientSocket);
             } catch (IOException e) {
-                if (isStopped()) {
+                if (this.isStopped()) {
                     System.out.println("Server Stopped.");
                     break;
                 }
                 throw new RuntimeException(
                         "Error accepting client connection", e);
             }
-            // Setup and execute a worker thread for this client
-            WorkerThread thread = new WorkerThread(clientSocket, this);
-            this.threadPool.execute(thread);
-            this.threadPoolList.add(thread);
         }
         // Shutdown all workers
-        this.threadPool.shutdown();
+        this.getThreadPool().shutdown();
         this.stop();
         System.out.println("Server Stopped.");
     }
 
-    private synchronized boolean isStopped() {
+    /**
+     * Whether or not the server is stopped
+     * @return isStopped
+     */
+    public synchronized boolean isStopped() {
         return this.isStopped;
     }
 
+    /**
+     * Stops the server and closes the server socket manually
+     */
     public synchronized void stop() {
         this.isStopped = true;
         try {
@@ -87,19 +104,31 @@ public class ChatServer implements Runnable {
         }
     }
 
-    // Open the socket for this server
-    private void openServerSocket() {
-        try {
-            this.serverSocket = new ServerSocket(this.serverPort);
-        } catch (IOException e) {
-            throw new RuntimeException("Cannot open port 8080", e);
+    /**
+     * Sends a chat message to all clients.
+     * @param message The message to send to all clients
+     * @throws IOException
+     */
+    public synchronized void sendChatMessage(String message) throws IOException {
+        for (Map.Entry<WorkerThread, Socket> client : getThreadPoolList().entrySet()) {
+            client.getKey().outputChatMessage(message);
         }
     }
 
-    public synchronized void sendChatMessage(String message) throws IOException {
-        for (WorkerThread thread : threadPoolList) {
-            thread.outputChatMessage(message);
-        }
+    /**
+     * Returns the client threads created by this server instance.
+     * @return threadPool
+     */
+    public ExecutorService getThreadPool() {
+        return threadPool;
+    }
+
+    /**
+     * Returns a map of the associations between the workers and the clients.
+     * @return threadPoolList
+     */
+    public HashMap<WorkerThread, Socket> getThreadPoolList() {
+        return threadPoolList;
     }
 
 } // end of ChatServer

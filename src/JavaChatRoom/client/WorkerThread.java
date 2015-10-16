@@ -21,27 +21,29 @@ public class WorkerThread implements Runnable {
     }
 
     public void run() {
-        try {
-            input = clientSocket.getInputStream();
-            output = clientSocket.getOutputStream();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(input, "UTF-8"));
-
-            String line;
-            // Read in client text and send back to client
-            while (true) {
-                line = reader.readLine();
-
-                System.out.println(line);
-
-                if (line.equals("/quit")) {
+        // Open socket to receive connections
+        while (!chatServer.isStopped()) {
+            try (
+                    PrintWriter out =
+                            new PrintWriter(clientSocket.getOutputStream(), true);
+                    BufferedReader in = new BufferedReader(
+                            new InputStreamReader(clientSocket.getInputStream()))
+            ) {
+                System.out.println("Successfully Connected to client" + chatServer.getThreadPoolList().size());
+                String inputLine;
+                // This while echoes the output
+                while ((inputLine = in.readLine()) != null) {
+                    chatServer.sendChatMessage(inputLine);
+                    // out.println(inputLine); // old code
+                }
+            } catch (IOException e) {
+                if (chatServer.isStopped()) {
+                    System.out.println("Server Stopped.");
                     break;
                 }
-                chatServer.sendChatMessage(line);
+                throw new RuntimeException(
+                        "Error accepting client connection", e);
             }
-            output.close();
-            input.close();
-        } catch (IOException e) {
-            e.printStackTrace();
         }
     } // end of run()
 
