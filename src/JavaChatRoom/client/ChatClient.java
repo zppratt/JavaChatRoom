@@ -12,6 +12,16 @@ import java.net.Socket;
 
 /**
  * @author Zach Pratt
+ * @project Project 2
+ * @course CS250
+ * @date 18 October 2015
+ * @duedate 20 October 2015
+ * "By placing this statement in my work, I certify that I have read and understand the IPFW
+Honor Code. I am fully aware of the following sections of the Honor Code: Extent of the
+Honor Code, Responsibility of the Student and Penalty. This project or subject material
+has not been used in another class by me or any other student. Finally, I certify that this
+site is not for commercial purposes, which is a violation of the IPFW Responsible Use of
+Computing (RUC) Policy."
  */
 public class ChatClient {
 
