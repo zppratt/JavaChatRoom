@@ -1,11 +1,13 @@
 package JavaChatRoom.server;
 
+import JavaChatRoom.client.ChatClient;
 import com.sun.xml.internal.ws.api.pipe.FiberContextSwitchInterceptor;
 
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -20,10 +22,11 @@ public class ChatServer implements Runnable {
     protected Thread currentServer;
     protected boolean isStopped;
     private ExecutorService threadPool = Executors.newFixedThreadPool(10);
-    private ArrayList<WorkerThread> threadPoolList = new ArrayList<>();
+    private HashMap<String, WorkerThread> threadPoolList = new HashMap<>();
 
     /**
      * Setup a server on port.
+     *
      * @param port The port to open for the server.
      */
     public ChatServer(int port) {
@@ -32,6 +35,7 @@ public class ChatServer implements Runnable {
 
     /**
      * Setup the server on the entered port.
+     *
      * @param args Must enter which port to open on.
      */
     public static void main(String[] args) {
@@ -60,37 +64,33 @@ public class ChatServer implements Runnable {
         synchronized (this) {
             this.currentServer = Thread.currentThread();
         }
-            // Open sockets for this server instance and a client
-            try (
-                    ServerSocket s = new ServerSocket(serverPort)
-            ) {
-                serverSocket = s;
-                String clientName; // store client name
-                int i = 0; // iterator
-                while(!isStopped()) {
-                    i++;
-                    // Setup and execute a worker thread for this client
-                    WorkerThread thread = new WorkerThread("Person " + i, serverSocket.accept(), this);
-                    this.getThreadPool().execute(thread);
-                    // Now kith
-                    this.getThreadPoolList().add(thread);
-                }
-            } catch (IOException e) {
-                if (this.isStopped()) {
-                    System.out.println("Server Stopped.");
-                    //break;
-                }
-                throw new RuntimeException(
-                        "Error accepting client connection", e);
+        // Open sockets for this server instance and a client
+        try {
+            serverSocket = new ServerSocket(serverPort);
+            int i = 0; // iterator
+            while (!isStopped()) {
+                i++;
+                // Setup and execute a worker thread for this client
+                WorkerThread thread = new WorkerThread("Person " + i, serverSocket.accept(), this);
+                this.getThreadPool().execute(thread);
             }
+        } catch (IOException e) {
+            if (this.isStopped()) {
+                System.out.println("Server Stopped.");
+            } else {
+                System.out.println("Error starting server. Is there another instance already running?");
+                System.exit(1);
+            }
+        }
         // Shutdown all workers
-        this.getThreadPool().shutdown();
+        this.getThreadPool().shutdownNow();
         this.stop();
         System.out.println("Server Stopped.");
     }
 
     /**
      * Whether or not the server is stopped
+     *
      * @return isStopped
      */
     public synchronized boolean isStopped() {
@@ -112,17 +112,20 @@ public class ChatServer implements Runnable {
 
     /**
      * Sends a chat message to all clients.
+     *
      * @param message The message to send to all clients
      * @throws IOException
      */
-    public synchronized void sendChatMessage(String message) throws IOException {
-        for (WorkerThread thread: threadPoolList) {
-            thread.printMessage(message);
+    public synchronized void sendChatMessage(String message, WorkerThread sender) throws IOException {
+        System.out.println("Sending a message to " + getThreadPoolList().size() + " clients");
+        for (WorkerThread thread : getThreadPoolList().values()) {
+            thread.printMessage(message, sender);
         }
     }
 
     /**
      * Returns the client threads created by this server instance.
+     *
      * @return threadPool
      */
     public ExecutorService getThreadPool() {
@@ -131,9 +134,10 @@ public class ChatServer implements Runnable {
 
     /**
      * Returns a map of the associations between the workers and the clients.
+     *
      * @return threadPoolList
      */
-    public ArrayList<WorkerThread> getThreadPoolList() {
+    public HashMap<String, WorkerThread> getThreadPoolList() {
         return threadPoolList;
     }
 
@@ -160,44 +164,67 @@ public class ChatServer implements Runnable {
         public void run() {
             // Open socket to receive connections
             while (!chatServer.isStopped()) {
-                try (
-                        PrintWriter o = new PrintWriter(clientSocket.getOutputStream(), true);
-                        BufferedReader i = new BufferedReader(
-                                new InputStreamReader(clientSocket.getInputStream()))
-                ) {
+                try {
+                    out = new PrintWriter(clientSocket.getOutputStream(), true);
+                    in = new BufferedReader(
+                            new InputStreamReader(clientSocket.getInputStream()));
                     System.out.println("Successfully Connected to " + getName());
-                    out = o;
-                    in = i;
+                    name = promptClientForName(out, in); // get name from client
+                    out.println("Hello " + name + "!");
+                    getThreadPoolList().put(name, this);
+                    chatServer.sendChatMessage(name + " has joined the chat.", null);
                     String inputLine;
                     // This while echoes the output
-                    while ((inputLine = in.readLine()) != null) {
-                        chatServer.sendChatMessage(inputLine);
+                    while ((inputLine = in.readLine()) != null && !inputLine.equals("/quit")) {
+                        chatServer.sendChatMessage(inputLine, this);
                     }
+                    sendChatMessage(getName() + " has left the chat.", null);
+                    getThreadPoolList().remove(name);
+                    out.close();
+                    in.close();
+                    return;
                 } catch (IOException e) {
                     if (chatServer.isStopped()) {
                         System.out.println("Server Stopped.");
                         break;
                     }
-                    throw new RuntimeException(
-                            "Error accepting client connection", e);
                 }
             }
         } // end of run()
 
         /**
          * Prints a message to the client associated with this thread.
+         *
          * @param message The message to print.
          */
-        public void printMessage(String message) {
-            out.println("Worker says:" + message);
+
+        public void printMessage(String message, WorkerThread sender) {
+            if (sender != null) { // don't print sender for the join or leave message
+                out.println(sender.getName() + " says: " + message);
+            } else {
+                out.println(message);
+            }
         }
 
         /**
          * Get the name of this client.
+         *
          * @return name
          */
         private String getName() {
             return name;
+        }
+
+        /**
+         * Get the client's name
+         *
+         * @param out
+         * @param in
+         * @return
+         */
+        private String promptClientForName(PrintWriter out, BufferedReader in) throws IOException {
+            out.println("What's your name?");
+            return in.readLine();
         }
 
     } // end of WorkerThread
