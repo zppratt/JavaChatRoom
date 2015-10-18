@@ -2,8 +2,6 @@ package JavaChatRoom.client;
 
 import org.apache.commons.validator.routines.InetAddressValidator;
 
-import javax.swing.*;
-import java.awt.*;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -29,8 +27,6 @@ public class ChatClient {
     private static PrintWriter out;
     private static BufferedReader in;
     private static BufferedReader stdIn;
-    private static JFrame window;
-    private static TextArea chat;
 
     /**
      * Receive input in a loop from the user and pass it along to the server and print out all responses.
@@ -39,14 +35,6 @@ public class ChatClient {
      * @throws Exception
      */
     public static void main(String[] args) throws Exception {
-
-        //Schedule a job for the event-dispatching thread:
-        //creating and showing this application's GUI.
-        javax.swing.SwingUtilities.invokeLater(new Runnable() {
-            public void run() {
-                createAndShowGUI();
-            }
-        });
 
         checkArgs(args);
 
@@ -105,25 +93,6 @@ public class ChatClient {
                     "Usage: java ChatClient <host name> <port number>");
             System.exit(1);
         }
-    }
-
-    /**
-     * Create the GUI and show it.  For thread safety,
-     * this method should be invoked from the
-     * event-dispatching thread.
-     */
-    private static void createAndShowGUI() {
-        //Create and set up the window.
-        window = new JFrame("Chat Client");
-        window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-
-        chat = new TextArea();
-        window.setPreferredSize(new Dimension(500, 300));
-        window.getContentPane().add(chat, BorderLayout.CENTER);
-
-        //Display the window.
-        window.pack();
-        window.setVisible(true);
     }
 
 } // end ChatClient
