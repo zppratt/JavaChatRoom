@@ -1,4 +1,4 @@
-package JavaChatRoom.server;
+package server;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -76,11 +76,11 @@ public class ChatServer implements Runnable {
         // Open sockets for this server instance and a client
         try {
             serverSocket = new ServerSocket(serverPort);
+            System.out.println("Open for connections on port " + serverPort);
             int i = 0; // iterator
             while (!isStopped()) {
-                i++;
                 // Setup and execute a worker thread for this client
-                WorkerThread thread = new WorkerThread("Person " + i, serverSocket.accept(), this);
+                WorkerThread thread = new WorkerThread(String.format("Person %d", i++), serverSocket.accept(), this);
                 this.getThreadPool().execute(thread);
             }
         } catch (IOException e) {

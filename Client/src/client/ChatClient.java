@@ -1,4 +1,4 @@
-package JavaChatRoom.client;
+package client;
 
 import org.apache.commons.validator.routines.InetAddressValidator;
 
@@ -84,7 +84,8 @@ public class ChatClient {
      * @param args The command line arguments
      */
     private static void checkArgs(String[] args) {
-        if (!(args[0].equals("localhost") ||  // "localhost" is a valid hostname
+        if (    !(args.length == 2) ||
+                !(args[0].equals("localhost") ||  // "localhost" is a valid hostname
                 InetAddressValidator.getInstance().isValid(args[0])) || // is valid inet address
                 !(Integer.valueOf(args[1]) > 256) || // ports less than 256 reserved for well-known services
                 !(Integer.valueOf(args[1]) < 65535) // maximum port value allowed
